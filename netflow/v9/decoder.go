@@ -88,9 +88,10 @@ type Decoder struct {
 
 // Message represents Netflow decoded data
 type Message struct {
-	AgentID  string
-	Header   PacketHeader
-	DataSets [][]DecodedField
+	AgentID   string
+	Header    PacketHeader
+	SetHeader SetHeader
+	DataSets  [][]DecodedField
 }
 
 //   The Packet Header format is specified as:
@@ -413,31 +414,30 @@ func (d *Decoder) Decode(mem MemCache) (*Message, error) {
 func (d *Decoder) decodeSet(mem MemCache, msg *Message) error {
 	startCount := d.reader.ReadCount()
 
-	setHeader := new(SetHeader)
-	if err := setHeader.unmarshal(d.reader); err != nil {
+	if err := msg.SetHeader.unmarshal(d.reader); err != nil {
 		return err
 	}
-	if setHeader.Length < 4 {
+	if msg.SetHeader.Length < 4 {
 		return io.ErrUnexpectedEOF
 	}
 
 	var tr TemplateRecord
 	var err error
 	// This check is somewhat redundant with the switch-clause below, but the retrieve() operation should not be executed inside the loop.
-	if setHeader.FlowSetID > 255 {
+	if msg.SetHeader.FlowSetID > 255 {
 		var ok bool
-		tr, ok = mem.retrieve(setHeader.FlowSetID, d.raddr)
+		tr, ok = mem.retrieve(msg.SetHeader.FlowSetID, d.raddr)
 		if !ok {
 			err = nonfatalError(fmt.Errorf("%s unknown netflow template id# %d",
 				d.raddr.String(),
-				setHeader.FlowSetID,
+				msg.SetHeader.FlowSetID,
 			))
 		}
 	}
 
 	// the next set should be greater than 4 bytes otherwise that's padding
-	for err == nil && (int(setHeader.Length)-(d.reader.ReadCount()-startCount) > 4) && d.reader.Len() > 4 {
-		if setId := setHeader.FlowSetID; setId == 0 || setId == 1 {
+	for err == nil && (int(msg.SetHeader.Length)-(d.reader.ReadCount()-startCount) > 4) && d.reader.Len() > 4 {
+		if setId := msg.SetHeader.FlowSetID; setId == 0 || setId == 1 {
 			// Template record or template option record
 			tr := TemplateRecord{}
 			if setId == 0 {
@@ -463,7 +463,7 @@ func (d *Decoder) decodeSet(mem MemCache, msg *Message) error {
 
 	// Skip the rest of the set in order to properly continue with the next set
 	// This is necessary if the set is padded, has a reserved set ID, or a nonfatal error occurred
-	leftoverBytes := int(setHeader.Length) - (d.reader.ReadCount() - startCount)
+	leftoverBytes := int(msg.SetHeader.Length) - (d.reader.ReadCount() - startCount)
 	if leftoverBytes > 0 {
 		_, skipErr := d.reader.Read(int(leftoverBytes))
 		if skipErr != nil {

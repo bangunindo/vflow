@@ -72,9 +72,10 @@ type TemplateFieldSpecifier struct {
 
 // Message represents IPFIX decoded data
 type Message struct {
-	AgentID  string
-	Header   MessageHeader
-	DataSets [][]DecodedField
+	AgentID   string
+	Header    MessageHeader
+	SetHeader SetHeader
+	DataSets  [][]DecodedField
 }
 
 // DecodedField represents a decoded field
@@ -151,37 +152,36 @@ func (d *Decoder) Decode(mem MemCache) (*Message, error) {
 func (d *Decoder) decodeSet(mem MemCache, msg *Message) error {
 	startCount := d.reader.ReadCount()
 
-	setHeader := new(SetHeader)
-	if err := setHeader.unmarshal(d.reader); err != nil {
+	if err := msg.SetHeader.unmarshal(d.reader); err != nil {
 		return err
 	}
-	if setHeader.Length < 4 {
+	if msg.SetHeader.Length < 4 {
 		return io.ErrUnexpectedEOF
 	}
 
 	var tr TemplateRecord
 	var err error
 	// This check is somewhat redundant with the switch-clause below, but the retrieve() operation should not be executed inside the loop.
-	if setHeader.SetID > 255 {
+	if msg.SetHeader.SetID > 255 {
 		var ok bool
-		if tr, ok = mem.retrieve(setHeader.SetID, d.raddr); !ok {
+		if tr, ok = mem.retrieve(msg.SetHeader.SetID, d.raddr); !ok {
 			select {
 			case rpcChan <- RPCRequest{
-				ID: setHeader.SetID,
+				ID: msg.SetHeader.SetID,
 				IP: d.raddr,
 			}:
 			default:
 			}
 			err = nonfatalError{fmt.Errorf("%s unknown ipfix template id# %d",
 				d.raddr.String(),
-				setHeader.SetID,
+				msg.SetHeader.SetID,
 			)}
 		}
 	}
 
 	// the next set should be greater than 4 bytes otherwise that's padding
-	for err == nil && setHeader.Length > uint16(d.reader.ReadCount()-startCount) && d.reader.Len() > 4 && setHeader.Length-uint16(d.reader.ReadCount()-startCount) > 4 {
-		if setID := setHeader.SetID; setID == 2 || setID == 3 {
+	for err == nil && msg.SetHeader.Length > uint16(d.reader.ReadCount()-startCount) && d.reader.Len() > 4 && msg.SetHeader.Length-uint16(d.reader.ReadCount()-startCount) > 4 {
+		if setID := msg.SetHeader.SetID; setID == 2 || setID == 3 {
 			// Template record or template option record
 
 			// Check if only padding is left in this set. A template id of zero indicates padding bytes, which MUST be zero.
@@ -221,7 +221,7 @@ func (d *Decoder) decodeSet(mem MemCache, msg *Message) error {
 
 	// Skip the rest of the set in order to properly continue with the next set
 	// This is necessary if the set is padded, has a reserved set ID, or a nonfatal error occurred
-	leftoverBytes := setHeader.Length - uint16(d.reader.ReadCount()-startCount)
+	leftoverBytes := msg.SetHeader.Length - uint16(d.reader.ReadCount()-startCount)
 	if leftoverBytes > 0 {
 		if _, skipErr := d.reader.Read(int(leftoverBytes)); skipErr != nil {
 			err = skipErr

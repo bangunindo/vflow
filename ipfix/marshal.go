@@ -149,6 +149,11 @@ func (m *Message) encodeHeader(b *bytes.Buffer) {
 	b.WriteString(",\"DomainID\":")
 	b.WriteString(strconv.FormatInt(int64(m.Header.DomainID), 10))
 	b.WriteString("},")
+	b.WriteString("\"SetHeader\":{\"SetID\":")
+	b.WriteString(strconv.FormatInt(int64(m.SetHeader.SetID), 10))
+	b.WriteString(",\"Length\":")
+	b.WriteString(strconv.FormatInt(int64(m.SetHeader.Length), 10))
+	b.WriteString("},")
 }
 
 func (m *Message) encodeAgent(b *bytes.Buffer) {

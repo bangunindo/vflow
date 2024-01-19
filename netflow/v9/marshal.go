@@ -146,6 +146,11 @@ func (m *Message) encodeHeader(b *bytes.Buffer) {
 	b.WriteString(",\"SrcID\":")
 	b.WriteString(strconv.FormatInt(int64(m.Header.SrcID), 10))
 	b.WriteString("},")
+	b.WriteString("\"SetHeader\":{\"FlowSetID\":")
+	b.WriteString(strconv.FormatInt(int64(m.SetHeader.FlowSetID), 10))
+	b.WriteString(",\"Length\":")
+	b.WriteString(strconv.FormatInt(int64(m.SetHeader.Length), 10))
+	b.WriteString("},")
 }
 
 func (m *Message) encodeAgent(b *bytes.Buffer) {
