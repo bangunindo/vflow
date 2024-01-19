@@ -43,7 +43,7 @@ func (m *Message) JSONMarshal(b *bytes.Buffer) ([]byte, error) {
 	m.encodeHeader(b)
 
 	// encode data sets
-	if err := m.encodeDataSetFlat(b); err != nil {
+	if err := m.encodeDataSet(b); err != nil {
 		return nil, err
 	}
 
