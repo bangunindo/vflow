@@ -3,8 +3,10 @@ FROM golang:1.21.6 as builder
 WORKDIR /go/src/
 
 RUN mkdir -p github.com/EdgeCast/vflow
-ADD . github.com/EdgeCast/vflow
 WORKDIR /go/src/github.com/EdgeCast/vflow
+ADD go.mod go.sum ./
+RUN go mod download
+ADD . ./
 RUN make build
 
 # run vFlow within alpine in the second stage
