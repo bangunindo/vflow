@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	yaml "gopkg.in/yaml.v2"
 )
 

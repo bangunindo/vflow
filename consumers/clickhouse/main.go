@@ -24,15 +24,18 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
+	"io"
 	"log"
 	"sync"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go"
-	cluster "github.com/bsm/sarama-cluster"
+	"github.com/segmentio/kafka-go"
 )
 
 type options struct {
@@ -78,10 +81,6 @@ func main() {
 		ch = make(chan ipfix, 10000)
 	)
 
-	config := cluster.NewConfig()
-	config.Consumer.Return.Errors = true
-	config.Group.Return.Notifications = true
-
 	for i := 0; i < 5; i++ {
 		go ingestClickHouse(ch)
 	}
@@ -90,13 +89,12 @@ func main() {
 
 	for i := 0; i < opts.Workers; i++ {
 		go func(ti int) {
-			brokers := []string{opts.Broker}
-			topics := []string{opts.Topic}
-			consumer, err := cluster.NewConsumer(brokers, "mygroup", topics, config)
+			consumer := kafka.NewReader(kafka.ReaderConfig{
+				Brokers: []string{opts.Broker},
+				Topic:   opts.Topic,
+				GroupID: "mygroup",
+			})
 
-			if err != nil {
-				panic(err)
-			}
 			defer consumer.Close()
 
 			pCount := 0
@@ -110,15 +108,20 @@ func main() {
 						log.Printf("partition GroupId#%d,  rate=%d\n", ti, (count-pCount)/10)
 					}
 					pCount = count
-				case msg, more := <-consumer.Messages():
-					objmap := ipfix{}
-					if more {
-						if err := json.Unmarshal(msg.Value, &objmap); err != nil {
+				default:
+					timeout, cancel := context.WithTimeout(context.Background(), time.Second)
+					msg, err := consumer.ReadMessage(timeout)
+					cancel()
+					if errors.Is(err, io.EOF) {
+						panic(err)
+					}
+					if err == nil {
+						objmap := ipfix{}
+						if err = json.Unmarshal(msg.Value, &objmap); err != nil {
 							log.Println(err)
 						} else {
 							ch <- objmap
 						}
-						consumer.MarkOffset(msg, "")
 						count++
 					}
 				}

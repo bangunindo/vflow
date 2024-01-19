@@ -24,13 +24,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
+	"github.com/segmentio/kafka-go"
+	"io"
 	"log"
 	"sync"
 	"time"
 
-	cluster "github.com/bsm/sarama-cluster"
+	cluster "github.com/IBM/sarama"
 )
 
 type options struct {
@@ -70,7 +74,6 @@ func main() {
 
 	config := cluster.NewConfig()
 	config.Consumer.Return.Errors = true
-	config.Group.Return.Notifications = true
 
 	wg.Add(opts.Workers)
 
@@ -78,13 +81,12 @@ func main() {
 		go func(ti int) {
 			var objmap ipfix
 
-			brokers := []string{opts.Broker}
-			topics := []string{opts.Topic}
-			consumer, err := cluster.NewConsumer(brokers, "mygroup", topics, config)
+			consumer := kafka.NewReader(kafka.ReaderConfig{
+				Brokers: []string{opts.Broker},
+				Topic:   opts.Topic,
+				GroupID: "mygroup",
+			})
 
-			if err != nil {
-				panic(err)
-			}
 			defer consumer.Close()
 
 			pCount := 0
@@ -98,9 +100,15 @@ func main() {
 						log.Printf("partition GroupId#%d,  rate=%d\n", ti, (count-pCount)/10)
 					}
 					pCount = count
-				case msg, more := <-consumer.Messages():
-					if more {
-						if err := json.Unmarshal(msg.Value, &objmap); err != nil {
+				default:
+					timeout, cancel := context.WithTimeout(context.Background(), time.Second)
+					msg, err := consumer.ReadMessage(timeout)
+					cancel()
+					if errors.Is(err, io.EOF) {
+						panic(err)
+					}
+					if err == nil {
+						if err = json.Unmarshal(msg.Value, &objmap); err != nil {
 							log.Println(err)
 						} else {
 							for _, data := range objmap.DataSets {
@@ -111,8 +119,6 @@ func main() {
 								}
 							}
 						}
-
-						consumer.MarkOffset(msg, "")
 						count++
 					}
 				}
