@@ -26,7 +26,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"github.com/go-json-experiment/json"
 	"net"
 	"strconv"
 )
@@ -44,7 +43,7 @@ func (m *Message) JSONMarshal(b *bytes.Buffer) ([]byte, error) {
 	m.encodeHeader(b)
 
 	// encode data sets
-	if err := m.encodeDataSetFlat(b); err != nil {
+	if err := m.encodeDataSet(b); err != nil {
 		return nil, err
 	}
 
@@ -96,6 +95,7 @@ func (m *Message) encodeDataSet(b *bytes.Buffer) error {
 
 func (m *Message) encodeDataSetFlat(b *bytes.Buffer) error {
 	var (
+		length   int
 		dsLength int
 		err      error
 	)
@@ -106,18 +106,20 @@ func (m *Message) encodeDataSetFlat(b *bytes.Buffer) error {
 	b.WriteByte('[')
 
 	for i := range m.DataSets {
-		valueMap := map[string]any{}
+		length = len(m.DataSets[i])
+
+		b.WriteByte('{')
 		for j := range m.DataSets[i] {
-			switch v := m.DataSets[i][j].Value.(type) {
-			case []byte:
-				valueMap[strconv.FormatInt(int64(m.DataSets[i][j].ID), 10)] = "0x" + hex.EncodeToString(m.DataSets[i][j].Value.([]uint8))
-			default:
-				valueMap[strconv.FormatInt(int64(m.DataSets[i][j].ID), 10)] = v
+			b.WriteByte('"')
+			b.WriteString(strconv.FormatInt(int64(m.DataSets[i][j].ID), 10))
+			b.WriteString("\":")
+			err = m.writeValue(b, i, j)
+
+			if j < length-1 {
+				b.WriteByte(',')
+			} else {
+				b.WriteByte('}')
 			}
-		}
-		err = json.MarshalWrite(b, valueMap)
-		if err != nil {
-			return err
 		}
 
 		if i < dsLength-1 {
