@@ -33,8 +33,6 @@ import (
 	"log"
 	"sync"
 	"time"
-
-	cluster "github.com/IBM/sarama"
 )
 
 type options struct {
@@ -71,9 +69,6 @@ func init() {
 
 func main() {
 	var wg sync.WaitGroup
-
-	config := cluster.NewConfig()
-	config.Consumer.Return.Errors = true
 
 	wg.Add(opts.Workers)
 

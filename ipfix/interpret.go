@@ -23,6 +23,7 @@
 package ipfix
 
 import (
+	"bytes"
 	"encoding/binary"
 	"math"
 	"net"
@@ -60,7 +61,7 @@ func Interpret(b *[]byte, t FieldType) interface{} {
 	case MacAddress:
 		return net.HardwareAddr(*b)
 	case String:
-		return string(*b)
+		return string(bytes.TrimRight(*b, "\x00"))
 	case Ipv4Address, Ipv6Address:
 		return net.IP(*b)
 	case DateTimeSeconds:
