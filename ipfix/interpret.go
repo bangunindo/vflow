@@ -30,24 +30,45 @@ import (
 )
 
 // Interpret read data fields based on the type - big endian
+// Conversion failure resulted in nil value
 func Interpret(b *[]byte, t FieldType) interface{} {
-	if len(*b) < t.minLen() {
-		return *b
+	if len(*b) == 0 {
+		switch t {
+		case String:
+			return ""
+		default:
+			return nil
+		}
 	}
-
 	switch t {
 	case Boolean:
-		return (*b)[0] == 1
+		return (*b)[0]&1 == 1
 	case Uint8:
 		return (*b)[0]
-	case Uint16:
-		return binary.BigEndian.Uint16(*b)
-	case Uint32:
-		return binary.BigEndian.Uint32(*b)
-	case Uint64:
-		return binary.BigEndian.Uint64(*b)
 	case Int8:
 		return int8((*b)[0])
+	// some netflow fields has growing size of uint
+	case Uint16, Uint32, Uint64:
+		if len(*b) >= t.minLen() {
+			switch t {
+			case Uint16:
+				return binary.BigEndian.Uint16(*b)
+			case Uint32:
+				return binary.BigEndian.Uint32(*b)
+			case Uint64:
+				return binary.BigEndian.Uint64(*b)
+			}
+		} else {
+			bPad := append(bytes.Repeat([]byte{0x00}, t.minLen()-len(*b)), *b...)
+			switch t {
+			case Uint16:
+				return binary.BigEndian.Uint16(bPad)
+			case Uint32:
+				return binary.BigEndian.Uint32(bPad)
+			case Uint64:
+				return binary.BigEndian.Uint64(bPad)
+			}
+		}
 	case Int16:
 		return int16(binary.BigEndian.Uint16(*b))
 	case Int32:
@@ -71,7 +92,8 @@ func Interpret(b *[]byte, t FieldType) interface{} {
 	case Unknown, OctetArray:
 		return *b
 	}
-	return *b
+
+	return nil
 }
 
 func (t FieldType) minLen() int {
