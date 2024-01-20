@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/ClickHouse/clickhouse-go v1.5.4
 	github.com/IBM/sarama v1.42.1
+	github.com/go-json-experiment/json v0.0.0-20231102232822-2e55bd4e08b0
 	github.com/nats-io/nats.go v1.32.0
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/prometheus/client_golang v1.18.0

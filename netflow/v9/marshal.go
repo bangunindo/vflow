@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"github.com/go-json-experiment/json"
 	"net"
 	"strconv"
 )
@@ -159,7 +160,7 @@ func (m *Message) encodeAgent(b *bytes.Buffer) {
 	b.WriteString("\",")
 }
 
-func (m *Message) writeValue(b *bytes.Buffer, i, j int) error {
+func (m *Message) writeValue(b *bytes.Buffer, i, j int) (err error) {
 	switch m.DataSets[i][j].Value.(type) {
 	case uint:
 		b.WriteString(strconv.FormatUint(uint64(m.DataSets[i][j].Value.(uint)), 10))
@@ -186,9 +187,7 @@ func (m *Message) writeValue(b *bytes.Buffer, i, j int) error {
 	case float64:
 		b.WriteString(strconv.FormatFloat(m.DataSets[i][j].Value.(float64), 'E', -1, 64))
 	case string:
-		b.WriteByte('"')
-		b.WriteString(m.DataSets[i][j].Value.(string))
-		b.WriteByte('"')
+		err = json.MarshalWrite(b, m.DataSets[i][j].Value.(string))
 	case net.IP:
 		b.WriteByte('"')
 		b.WriteString(m.DataSets[i][j].Value.(net.IP).String())
@@ -205,5 +204,5 @@ func (m *Message) writeValue(b *bytes.Buffer, i, j int) error {
 		return errUknownMarshalDataType
 	}
 
-	return nil
+	return
 }
